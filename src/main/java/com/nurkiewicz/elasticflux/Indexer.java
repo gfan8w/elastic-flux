@@ -18,6 +18,7 @@ import reactor.core.publisher.MonoSink;
 import javax.annotation.PostConstruct;
 import java.time.Duration;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
 
 @Component
@@ -64,7 +65,7 @@ class Indexer {
 
     private Mono<IndexResponse> indexDoc(Doc doc) {
         return Mono.create(sink -> {
-            final IndexRequest indexRequest = new IndexRequest("people", "person", doc.getUsername());
+            final IndexRequest indexRequest = new IndexRequest("people", "_doc", doc.getUsername());
             indexRequest.source(doc.getJson(), XContentType.JSON);
             client.indexAsync(indexRequest, listenerToSink(sink));
         });
@@ -84,6 +85,7 @@ class Indexer {
         };
     }
 
+    private AtomicLong total =new AtomicLong();
     @PostConstruct
     void startIndexing() {
         Flux
@@ -93,7 +95,10 @@ class Indexer {
                 .concatMap(concurrency -> index(5_000, concurrency))
                 .window(Duration.ofSeconds(1))
                 .flatMap(Flux::count)
-                .subscribe(winSize -> log.debug("Got {} responses in last second", winSize));
+                .subscribe(winSize -> {
+                    long t = total.addAndGet(winSize);
+                    log.debug("Got {} responses in last second, total:{}", winSize, t);
+                });
     }
 
 }
