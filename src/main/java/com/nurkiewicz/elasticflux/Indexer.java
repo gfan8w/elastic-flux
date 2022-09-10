@@ -55,7 +55,7 @@ class Indexer {
 
     private Mono<IndexResponse> indexDoc(Doc doc) {
         return Mono.create(sink -> {
-            final IndexRequest indexRequest = new IndexRequest("people", "person", doc.getUsername());
+            final IndexRequest indexRequest = new IndexRequest("people", "_doc", doc.getUsername());
             indexRequest.source(doc.getJson(), XContentType.JSON);
             client.indexAsync(indexRequest, listenerToSink(sink));
         });
