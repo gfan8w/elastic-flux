@@ -14,6 +14,8 @@ import reactor.core.publisher.MonoSink;
 
 import javax.annotation.PostConstruct;
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 @Slf4j
@@ -23,6 +25,8 @@ class Indexer {
     private final PersonGenerator personGenerator;
     private final RestHighLevelClient client;
 
+    private AtomicLong cnt =new AtomicLong();
+
     private void index(int count) {
         personGenerator
                 .infinite()
@@ -30,7 +34,12 @@ class Indexer {
                 .flatMap(this::indexDocSwallowErrors, 1)
                 .window(Duration.ofSeconds(1))
                 .flatMap(Flux::count)
-                .subscribe(winSize -> log.debug("Got {} responses in last second", winSize));
+                .subscribe(winSize -> {
+                    log.debug("Got {} responses in last second", winSize);
+                    long total = cnt.addAndGet(winSize);
+                    log.info("total:{}", total);
+
+                });
     }
 
     private Mono<IndexResponse> indexDocSwallowErrors(Doc doc) {
@@ -41,7 +50,7 @@ class Indexer {
 
     private Mono<IndexResponse> indexDoc(Doc doc) {
         return Mono.create(sink -> {
-            final IndexRequest indexRequest = new IndexRequest("people", "person", doc.getUsername());
+            final IndexRequest indexRequest = new IndexRequest("people", "_doc", doc.getUsername());
             indexRequest.source(doc.getJson(), XContentType.JSON);
             client.indexAsync(indexRequest, listenerToSink(sink));
         });
@@ -63,7 +72,7 @@ class Indexer {
 
     @PostConstruct
     void startIndexing() {
-        index(1_000_000);
+        index(100_000);
     }
 
 }
